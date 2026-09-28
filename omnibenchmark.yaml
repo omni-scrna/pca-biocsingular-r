@@ -10,9 +10,9 @@ templates:
   lang: r
 
 # Benchmark(s) that this module plugs into; `sync` vendors each one's schema/ dir into
-# src/common/schema/. Tracking the unmerged contract branch for now.
+# src/common/schema/.
 benchmarks:
   - name: split-stages
     repo: https://github.com/omni-scrna/split-stages-plan
     plan: benchmark_conda.yaml
-    ref: new-stage-naming
+    ref: main

@@ -17,8 +17,8 @@ authors:
 date-released: "2026-08-19"
 version: "0.1.0"
 license: MIT
-url: "https://github.com/omni-scrna/5-pca-biocsingular-r"
-repository-code: "https://github.com/omni-scrna/5-pca-biocsingular-r"
+url: "https://github.com/btraven00/pca-biosingular-r"
+repository-code: "https://github.com/btraven00/pca-biosingular-r"
 keywords:
   - bioinformatics
   - computational-biology
@@ -29,3 +29,45 @@ references:
   - title: "omnibenchmark port"
     type: software
     url: "https://github.com/scrna-bench/pipelines-r"
+    authors:
+      - name: "scrna-bench contributors"
+  - title: "BiocSingular"
+    type: software
+    version: "1.26.1"
+    license: GPL-3.0-only
+    url: "https://github.com/LTLA/BiocSingular"
+    authors:
+      - family-names: "Lun"
+        given-names: "Aaron"
+  - type: article
+    title: "Augmented Implicitly Restarted Lanczos Bidiagonalization Methods"
+    authors:
+      - family-names: "Baglama"
+        given-names: "James"
+      - family-names: "Reichel"
+        given-names: "Lothar"
+    journal: "SIAM Journal on Scientific Computing"
+    volume: 27
+    issue: 1
+    start: 19
+    end: 42
+    year: 2005
+    doi: "10.1137/04060593X"
+  - type: article
+    title: "Randomized Matrix Decompositions Using R"
+    authors:
+      - family-names: "Erichson"
+        given-names: "N. Benjamin"
+      - family-names: "Voronin"
+        given-names: "Sergey"
+      - family-names: "Brunton"
+        given-names: "Steven L."
+      - family-names: "Kutz"
+        given-names: "J. Nathan"
+    journal: "Journal of Statistical Software"
+    volume: 89
+    issue: 11
+    start: 1
+    end: 48
+    year: 2019
+    doi: "10.18637/jss.v089.i11"

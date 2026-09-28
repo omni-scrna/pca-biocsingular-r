@@ -50,7 +50,7 @@ pixi run Rscript pca.R \
 
 Outputs, both written to `<output_dir>`:
 
-- `<name>_pcas.tsv` — header `cell_id<TAB>PC1<TAB>...<TAB>PC{n_components}`, one row per cell
+- `<name>_embedding.tsv` — header `cell_id<TAB>PC1<TAB>...<TAB>PC{n_components}`, one row per cell
 - `<name>_loadings.tsv` — header `gene<TAB>PC1<TAB>...`, one row per gene
 
 ## Axes
