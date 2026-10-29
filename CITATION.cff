@@ -17,8 +17,8 @@ authors:
 date-released: "2026-08-19"
 version: "0.1.0"
 license: MIT
-url: "https://github.com/btraven00/pca-biosingular-r"
-repository-code: "https://github.com/btraven00/pca-biosingular-r"
+url: "https://github.com/omni-scrna/pca-biocsingular-r"
+repository-code: "https://github.com/omni-scrna/pca-biocsingular-r"
 keywords:
   - bioinformatics
   - computational-biology

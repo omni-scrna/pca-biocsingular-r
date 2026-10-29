@@ -1,35 +1,21 @@
 # pca-biocsingular-r
 
-`BiocSingular`-backed PCA module for omnibenchmark scRNA pipelines.
-
-`BiocSingular::runSVD` dispatches on a `BSPARAM` object, so a single code path covers several
-SVD backends and the **solver becomes a benchmark parameter**:
+`BiocSingular`-backed PCA module for omnibenchmark scRNA pipelines. `BiocSingular::runSVD`
+dispatches on a `BSPARAM`, so the SVD solver is a benchmark parameter:
 
 | `--solver` | `BSPARAM` | algorithm |
 |---|---|---|
 | `exact` | `ExactParam()` | LAPACK full SVD, truncated to `k` |
-| `random` | `RandomParam()` | Halko randomized SVD, via `rsvd` (`p=10`, `q=2`) |
-| `irlba` | `IrlbaParam()` | implicitly-restarted Lanczos, via `irlba` (`work = k + 7`) |
+| `random` | `RandomParam()` | Halko randomized SVD via `rsvd` |
+| `irlba` | `IrlbaParam()` | implicitly-restarted Lanczos via `irlba` |
 
 ## Setup
 
 ```sh
 pixi install
-pixi run check
+pixi run check        # prints OK if all runtime libraries load
+pixi run export-env   # regenerates envs/pca-biocsingular-r.yml from pixi.toml
 ```
-
-`pixi run check` loads all runtime libraries and prints `OK`. Run it after install to confirm the
-environment is healthy.
-
-## Conda environment export
-
-```sh
-pixi run export-env
-```
-
-Exports the resolved environment to `envs/pca-biocsingular-r.yml`. The environment is named after
-the repo root folder. The file is generated — change `pixi.toml` and re-export rather than editing
-it by hand.
 
 ## Usage
 
@@ -48,76 +34,39 @@ pixi run Rscript pca.R \
   [--power_iters <int>]
 ```
 
-Outputs, both written to `<output_dir>`:
+Outputs in `<output_dir>`:
 
-- `<name>_embedding.tsv` — header `cell_id<TAB>PC1<TAB>...<TAB>PC{n_components}`, one row per cell
-- `<name>_loadings.tsv` — header `gene<TAB>PC1<TAB>...`, one row per gene
+- `<name>_embedding.tsv`: `cell_id`, `PC1..PC{n_components}`, one row per cell
+- `<name>_loadings.tsv`: `gene`, `PC1..`, one row per gene
 
-## Axes
+## Parameters
 
-**`--dense`** materialises the matrix before PCA. Only the dense path puts real work through
-BLAS-3, so it is the axis that interacts with `--blas_threads`.
+- `--dense`: materialise the matrix before PCA. Only this path does real BLAS-3 work, so it is
+  the one that interacts with `--blas_threads`.
+- `--blas_threads`: set via `RhpcBLASctl`, overriding Snakemake's `OMP_NUM_THREADS=1`. `0` leaves
+  it alone. Results differ at ~1e-15 across thread counts; compare with `all.equal`.
+- `--oversampling` (`p`, default 10), `--power_iters` (`q`, default 2): `random` only, passed to
+  `rsvd::rsvd`. Ignored with a warning for other solvers.
+- `--deferred`: center as an operator instead of materialising the centered matrix. Numerically
+  equivalent; only lowers peak memory for `random` (~660 → 450 MB on be1-fixture).
+- `--random_seed`: used by `random` only. `exact` is deterministic; `irlba` converges to `tol`.
 
-**`--blas_threads`** calls `RhpcBLASctl::blas_set_num_threads` at runtime, which overrides the
-`OMP_NUM_THREADS` that Snakemake exports (it defaults to 1, which would otherwise pin every job
-single-threaded regardless of the linked BLAS). `0` leaves it alone. Note that changing the thread
-count perturbs floating-point reduction order: results are stable *within* a thread count and
-differ at ~1e-15 *across* thread counts, so compare with `all.equal`, not `identical`.
+### `q` matters
 
-**`--oversampling` (`p`) and `--power_iters` (`q`)** size the randomized sketch, `--solver random`
-only; they are forwarded to `rsvd::rsvd` through `RandomParam(...)`. Defaults restate rsvd's own
-(`p=10`, `q=2`) and are echoed in the run log rather than left implicit. Passing either to `exact`
-or `irlba` warns on stderr and is ignored — `ExactParam` has no sketch, and `IrlbaParam`'s analogue
-is `extra.work`, not `p`/`q`.
-
-`q` is the parameter that decides whether trailing PCs are resolved at all, which makes it the
-axis rather than a default worth inheriting. **scikit-learn's `randomized_svd` picks `n_iter=7` at
-these shapes** (`n_iter="auto"` → `7` when `n_components < 0.1 * min(dim)`; verified identical in
-sklearn 1.2.0 and 1.8.0), i.e. 3.5× more than rsvd. Comparing the two libraries on their
-respective defaults compares the defaults, not the libraries.
-
-Measured on be1-fixture (2000 × 1715, `k=50`), mean per-PC `|cor|` against `ExactParam`:
+rsvd defaults to `q=2`; scikit-learn's `randomized_svd` uses `n_iter=7` at these shapes.
+Mean per-PC `|cor|` vs `exact` on be1-fixture (2000 × 1715, `k=50`):
 
 | `random` config | PC1-20 | PC21-30 | PC31-40 | PC41-50 |
 |---|---|---|---|---|
-| `q=2, p=10` *(default)* | 0.98 | 0.619 | 0.275 | 0.115 |
+| `q=2, p=10` (default) | 0.98 | 0.619 | 0.275 | 0.115 |
 | `q=7, p=10` | 1.00 | 0.994 | 0.866 | 0.222 |
 | `q=7, p=20` | 1.00 | 0.998 | 0.954 | 0.365 |
-| *scanpy randomized, for reference* | 1.00 | 0.996 | 0.710 | 0.302 |
+| scanpy randomized | 1.00 | 0.996 | 0.710 | 0.302 |
 
-At `q=7` this module lands on scanpy's randomized arm; the whole gap was the default. The decay
-past PC30 that survives at every setting is the flat tail of the spectrum — consecutive singular
-values differ by <1% there, so those components are not individually identifiable and no solver
-setting recovers them.
-
-Seeds are not a substitute for `q`: the error is bias, not zero-mean noise. Over 10 seeds at
-`q=2` the median is 0.579 in PC21-30 — no better than a single run — while the spread runs 0.013
-to 0.942. Raise `q`, do not average seeds.
-
-**`--deferred`** applies centering as an operator over the original matrix instead of
-materialising the centered matrix. The two are mathematically identical (measured: `1.8e-14`
-relative difference for `random`, exactly `0` for `exact`), so this isolates an implementation
-choice from a method choice.
-
-Measured effect on peak memory (BiocSingular 1.28.0, serial, `fold=Inf`):
-
-| solver | `--deferred false` | `--deferred true` |
-|---|---|---|
-| `random` | 660 MB | **449 MB** |
-| `exact` | 652 MB | 642 MB |
-| `irlba` | 358 MB | 359 MB |
-
-Only `random` is affected. `runExactSVD` calls `safe_svd(as.matrix(x))` and materialises either
-way; `runIrlbaSVD`'s serial branch never reads `deferred`, because irlba's native `center=`
-already defers. The inert cells are kept in the grid deliberately — that deferral is *not* a
-per-method property is the claim under test, and those cells are the evidence.
-
-**`--random_seed`** is consumed by `--solver random` only. `exact` is deterministic, and irlba
-converges to `tol` regardless of its random start vector. BiocSingular itself contains no RNG;
-randomness enters only through the delegated `rsvd` and `irlba` calls, off R's global stream.
+The error at low `q` is bias, so averaging seeds does not fix it. Past PC30 the spectrum is flat
+and no setting recovers individual components.
 
 ## Citation
 
-If you use this module in your research, please cite it using the information in `CITATION.cff`.
-Please also cite `BiocSingular` (Lun), and the underlying solver you used: Baglama & Reichel
-(2005) for `irlba`, or Halko, Martinsson & Tropp (2011) for `random`.
+See `CITATION.cff`. Please also cite `BiocSingular` (Lun) and the solver used: Baglama & Reichel
+(2005) for `irlba`, Halko, Martinsson & Tropp (2011) for `random`.
